@@ -33,8 +33,7 @@
             <div class="chart-title" :style="titleStyle">
               <h2 class="sup-title"></h2>
             </div>
-            <!-- <div class="region-hint" :style="regionHintStyle"><span class="drag-hint">Drag variables into drop
-                zones</span></div> -->
+
             <div class="region region-X" :style="regionXStyle" @dragover.prevent @dragenter="highlight($event)"
               @dragleave="unhighlight($event)" @drop="handleDrop($event, 'X')">
               <span class="rt rt-X">X</span>
@@ -65,11 +64,7 @@
 
   import { isDiscrete } from './utils/data.js'
 
-  import {
-    initChart,
-    updateChart,
-    setFieldSetters
-  } from '@/utils/chart.js';
+  import { GraphBuilder } from '@/utils/chart.js';
 
   const datasetName = "explore.csv";
   const margin = { top: 50, right: 150, bottom: 60, left: 60 };
@@ -91,21 +86,60 @@
   const cField = ref('');
   const sField = ref('');
   const svg = ref(null);
-
-  // 把组件的字段 setter 注入到模块中
-  setFieldSetters({
-    setX: col => xField.value = col,
-    setY: col => yField.value = col,
-    setC: col => cField.value = col,
-    setS: col => sField.value = col
-  });
+  const gb = ref(null)
 
   onMounted(async () => {
     const raw = await d3.csv('/dataset/explore_more.csv', d3.autoType);
+    // const raw = await d3.csv('/dataset/apple_cleaned.csv', d3.autoType);
     data.value = raw;
     columns.value = raw.columns || Object.keys(raw[0] || {});
-    initChart(svg.value, innerW, innerH, outerW, outerH, margin);
+    gb.value = new GraphBuilder(svg.value, innerW, innerH, outerW, outerH, margin)
   });
+
+  function highlight(event) {
+    // 用 d3 设置 style 的优先级很高，推荐用 css class 来配置样式
+    d3.select(event.target).classed("region-hover", true);
+  }
+
+  function unhighlight(event) {
+    d3.select(event.target).classed("region-hover", false);
+  }
+
+  function handleDrop(event, name) {
+    const col = event.dataTransfer.getData("text/plain");
+    if (name === "X") {
+      xField.value = col;
+      d3.select(".region-X").classed("region-hidden", true)
+    }
+    else if (name === "Y") {
+      yField.value = col;
+      d3.select(".region-Y").classed("region-hidden", true)
+    }
+    else if (name === "C") {
+      cField.value = col;
+      d3.select(".rt-C").text(`Color: ${col}`)
+    }
+    else if (name === "S") {
+      sField.value = col;
+      d3.select(".rt-S").text(`Size: ${col}`)
+    }
+
+    d3.select('.drag-hint').attr('display', 'none')
+    d3.select(event.target).classed("region-hover", false);
+  }
+
+  // 监听字段变化，更新图表
+  watch([xField, yField, cField, sField], () => {
+    const fields = [xField.value, yField.value, cField.value, sField.value]
+    if (gb.value) {
+      // gb.value.drawScatter(data.value, fields, innerW, innerH, margin);
+      gb.value.drawHistogram(data.value, [xField.value], innerW, innerH, margin)
+    }
+  });
+
+  function onDragStart(event, col) {
+    event.dataTransfer.setData('text/plain', col);
+  }
 
   const columnInfo = computed(() => columns.value.map((name) => {
     const arr = data.value.map(d => d[name])
@@ -152,47 +186,6 @@
     justifyContent: "center",
     alignItems: "center",
   }))
-
-  function highlight(event) {
-    d3.select(event.target).style("background-color", "#ccc");
-  }
-
-  function unhighlight(event) {
-    d3.select(event.target).style("background-color", "transparent");
-  }
-
-  function handleDrop(event, name) {
-    const col = event.dataTransfer.getData("text/plain");
-    d3.select(event.target).style("background-color", "transparent");
-    if (name === "X") {
-      xField.value = col;
-      d3.select(".region-X").style("opacity", 0)
-    }
-    else if (name === "Y") {
-      yField.value = col;
-      d3.select(".region-Y").style("opacity", 0)
-    }
-    else if (name === "C") {
-      cField.value = col;
-      d3.select(".rt-C").text(`Color: ${col}`)
-    }
-    else if (name === "S") {
-      sField.value = col;
-      d3.select(".rt-S").text(`Size: ${col}`)
-    }
-
-    d3.select('.drag-hint').attr('display', 'none')
-  }
-
-  // 监听字段变化，更新图表
-  watch([xField, yField, cField, sField], () => {
-    const fields = [xField.value, yField.value, cField.value, sField.value]
-    updateChart(svg.value, data.value, fields, innerW, innerH, margin);
-  });
-
-  function onDragStart(event, col) {
-    event.dataTransfer.setData('text/plain', col);
-  }
 </script>
 
 <style>
@@ -305,6 +298,20 @@
 
   }
 
+  .region-hover {
+    background-color: #ccc;
+    border: 1.5px solid rgba(0, 0, 0, 0.2) !important;
+  }
+
+  .region-hidden {
+    border: none;
+    background-color: transparent;
+  }
+
+  .region-hidden span {
+    visibility: hidden;
+  }
+
   .rt {
     font-size: 18px;
     font-weight: bold;
@@ -351,5 +358,25 @@
 
   circle.point.selected {
     opacity: 1;
+  }
+
+  #hist-stripes rect {
+    fill: #7986CB;
+  }
+
+  #hist-stripes line {
+    stroke: #5C6BC0;
+    stroke-width: 2
+  }
+
+
+  .bar {
+    fill: #dde0f0;
+    stroke: #333;
+  }
+
+  .bar-selected {
+    fill: url(#hist-stripes);
+    stroke: #333;
   }
 </style>
