@@ -15,10 +15,18 @@
     </aside>
     <div class="right-div">
       <div id="chart-types">
-        <ChartScatter :size="plotIconSize" stroke-width="1.5" :stroke="typeMarkerStroke" class="chart-icon" />
-        <ChartLine :size="plotIconSize" stroke-width="1.5" :stroke="typeMarkerStroke" class="chart-icon" />
-        <ChartColumn :size="plotIconSize" stroke-width="1.5" :stroke="typeMarkerStroke" class="chart-icon" />
-        <ChartCandlestick :size="plotIconSize" stroke-width="1.5" :stroke="typeMarkerStroke" class="chart-icon" />
+        <ChartScatter :size="plotIconSize" stroke-width="1.5" :stroke="typeMarkerStroke" class="chart-icon"
+          @click="changeSelectedChart('scatter')"
+          :class="['chart-icon', { 'chart-icon--active': selectedChart === 'scatter' }]" />
+        <ChartColumn :size="plotIconSize" stroke-width="1.5" :stroke="typeMarkerStroke" class="chart-icon"
+          @click="changeSelectedChart('histogram')"
+          :class="['chart-icon', { 'chart-icon--active': selectedChart === 'histogram' }]" />
+        <ChartCandlestick :size="plotIconSize" stroke-width="1.5" :stroke="typeMarkerStroke" class="chart-icon"
+          @click="changeSelectedChart('box')"
+          :class="['chart-icon', { 'chart-icon--active': selectedChart === 'box' }]" />
+        <ChartLine :size="plotIconSize" stroke-width="1.5" :stroke="typeMarkerStroke" class="chart-icon"
+          @click="changeSelectedChart('line')"
+          :class="['chart-icon', { 'chart-icon--active': selectedChart === 'line' }]" />
       </div>
       <div id="plot-area">
         <svg ref="svg" :width="outerW" :height="outerH" id="plot-svg"></svg>
@@ -81,6 +89,7 @@
 
   const columns = ref([]);
   const data = ref([]);
+  const selectedChart = ref('scatter')
   const xField = ref('');
   const yField = ref('');
   const cField = ref('');
@@ -91,6 +100,8 @@
   onMounted(async () => {
     const raw = await d3.csv('/dataset/explore_more.csv', d3.autoType);
     // const raw = await d3.csv('/dataset/apple_cleaned.csv', d3.autoType);
+    // const raw = await d3.csv('/dataset/large_dataset.csv', d3.autoType);
+
     data.value = raw;
     columns.value = raw.columns || Object.keys(raw[0] || {});
     gb.value = new GraphBuilder(svg.value, innerW, innerH, outerW, outerH, margin)
@@ -129,16 +140,24 @@
   }
 
   // 监听字段变化，更新图表
-  watch([xField, yField, cField, sField], () => {
+  watch([xField, yField, cField, sField, selectedChart], () => {
     const fields = [xField.value, yField.value, cField.value, sField.value]
     if (gb.value) {
       // gb.value.drawScatter(data.value, fields, innerW, innerH, margin);
-      gb.value.drawHistogram(data.value, [xField.value], innerW, innerH, margin)
+      if (selectedChart.value == "scatter") {
+        gb.value.drawScatter(data.value, fields, innerW, innerH, margin);
+      } else if (selectedChart.value == "histogram") {
+        gb.value.drawHistogram(data.value, [xField.value], innerW, innerH, margin)
+      }
     }
   });
 
   function onDragStart(event, col) {
     event.dataTransfer.setData('text/plain', col);
+  }
+
+  function changeSelectedChart(type) {
+    selectedChart.value = type
   }
 
   const columnInfo = computed(() => columns.value.map((name) => {
@@ -256,6 +275,12 @@
     stroke: black;
     stroke-width: 2;
     cursor: pointer;
+    background-color: white;
+  }
+
+  .chart-icon--active {
+    stroke: black;
+    stroke-width: 2;
     background-color: white;
   }
 

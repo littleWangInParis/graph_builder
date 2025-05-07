@@ -1,5 +1,7 @@
 // src/utils/chart.js
 /* 
+ TODO 直方图动画修改
+ TODO 散点图一开始要【根据情况】清除画布
  TODO 切换图像 zoom 时候轴的变化有问题
  TODO 拖出变量
  TODO 拖拽调整大小
@@ -58,8 +60,6 @@ export class GraphBuilder {
   drawScatter(data, fields, innerW, innerH, margin) {
     const [xField, yField, cField, sField] = fields
 
-    // modifyPlotConfigs(svg, fields)
-
     // 悬停标签
     const tip = getTips(fields)
 
@@ -70,6 +70,9 @@ export class GraphBuilder {
         .append('g')
         .attr('class', 'plot-content')
         .attr('transform', `translate(${margin.left},${margin.top})`)
+    } 
+    else {
+      g.selectAll(':not(circle)').remove()
     }
 
     // 数据预处理
@@ -256,8 +259,9 @@ export class GraphBuilder {
     // X 轴比例尺
     const xScale = d3.scaleLinear().domain(d3.extent(values)).nice().range([0, innerW])
 
-    // 分箱规则
+    // 分箱规则，ticks 函数会按照图像易读性调整分箱数量
     const thresholds = xScale.ticks(20)
+    console.log(thresholds)
 
     // 生成 bins
     const binGen = d3
@@ -403,7 +407,7 @@ export class GraphBuilder {
 
     const brushG = g.append('g').attr('class', 'brush').call(brushBehavior)
     // 这样可以让 tips 显示 但是无法应用 brush 了
-    brushG.select('.overlay').style('pointer-events', 'none')
+    // brushG.select('.overlay').style('pointer-events', 'none')
   }
 }
 
