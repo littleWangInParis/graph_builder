@@ -51,28 +51,7 @@
       .tickSize(-innerWidth)
       .tickFormat('')
 
-    const g = svg.append('g')
-      .attr('transform', `translate(${margin.left},${margin.top})`)
-
-    // 网格线
-    g.append('g')
-      .attr('class', 'grid x-grid')
-      .attr('transform', `translate(0,${innerHeight})`)
-      .call(xGrid)
-
-    g.append('g')
-      .attr('class', 'grid y-grid')
-      .call(yGrid)
-
-    // 坐标轴
-    g.append('g')
-      .attr('class', 'axis x-axis')
-      .attr('transform', `translate(0,${innerHeight})`)
-      .call(xAxis)
-
-    g.append('g')
-      .attr('class', 'axis y-axis')
-      .call(yAxis)
+    svg.style("background-color", "orange")
   </script>
 </body>
 </html>

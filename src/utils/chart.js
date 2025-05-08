@@ -1,7 +1,6 @@
 // src/utils/chart.js
 /* 
- TODO 直方图动画修改
- TODO 散点图一开始要【根据情况】清除画布
+ TODO xFields 改为 array，拖入就加一个
  TODO 切换图像 zoom 时候轴的变化有问题
  TODO 拖出变量
  TODO 拖拽调整大小
@@ -11,69 +10,83 @@ import * as d3 from 'd3'
 import d3Tip from 'd3-tip'
 import { DataFrame } from './data'
 
-export class GraphBuilder {
-  constructor(svgRef, innerW, innerH, outerW, outerH, margin) {
-    this.svg = d3.select(svgRef)
+export function initGraphBuilder(container, innerW, innerH, outerW, outerH, margin) {
+  const gbSVG = d3.select(container)
 
-    this.svg
-      .append('defs')
-      .append('clipPath')
-      .attr('id', 'plot-clip')
-      .append('rect')
-      .attr('x', 0)
-      .attr('y', 0)
-      .attr('width', innerW)
-      .attr('height', innerH)
+  // 白色背景
+  gbSVG
+    .append('rect')
+    .attr('x', margin.left)
+    .attr('y', margin.top)
+    .attr('width', innerW)
+    .attr('height', innerH)
+    .attr('fill', 'white')
 
-    /* 
+  // 拖拽文字提示
+  gbSVG
+    .append('text')
+    .attr('class', 'drag-hint')
+    .attr('x', (2 * margin.left + innerW) / 2)
+    .attr('y', (2 * margin.top + innerH) / 2)
+    .attr('text-anchor', 'middle')
+    .text('Drag variables into drop zones')
+
+  gbSVG.attr('viewBox', [0, 0, outerW, outerH])
+
+  /* 
     SVG 元素本质上是无限大的
     viewBox 设置拍下的照片的范围
     viewPort 是展示照片的相框
     SVG 的 width 和 height 其实是设置视窗 viewPort 的 
     */
+}
 
-    // 白色背景
-    this.svg
+export class PlotLauncher {
+  constructor(container, width, height, margin, chartID) {
+    this.margin = margin
+    this.width = width
+    this.height = height
+    this.innerW = width - margin.left - margin.right
+    this.innerH = height - margin.top - margin.bottom
+    this.chartID = chartID
+
+    this.svg = d3
+      .select(container)
+      .append('svg')
+      .attr('class', `svg-${chartID}`)
+      .attr('width', width)
+      .attr('height', height)
+      .attr('viewBox', [0, 0, width, height])
+
+    this.plotContent = this.svg
+      .append('g')
+      .attr('class', 'plot-content')
+      .attr('transform', `translate(${margin.left},${margin.top})`)
+
+    this.plotContent
+      .append('defs')
+      .append('clipPath')
+      .attr('id', `plot-clip-${chartID}`)
       .append('rect')
-      .attr('x', margin.left)
-      .attr('y', margin.top)
-      .attr('width', innerW)
-      .attr('height', innerH)
-      .attr('fill', 'white')
-
-    // 拖拽文字提示
-    this.svg
-      .append('text')
-      .attr('class', 'drag-hint')
-      .attr('x', (2 * margin.left + innerW) / 2)
-      .attr('y', (2 * margin.top + innerH) / 2)
-      .attr('text-anchor', 'middle')
-      .text('Drag variables into drop zones')
-
-    this.svg.attr('viewBox', [0, 0, outerW, outerH])
-
-    // this.margin = margin
-    // this.innerW = innerW
-    // this.innerH = innerH
+      .attr('x', 0)
+      .attr('y', 0)
+      .attr('width', this.innerW)
+      .attr('height', this.innerH)
   }
 
-  drawScatter(data, fields, innerW, innerH, margin) {
+  drawScatter(data, fields) {
     const [xField, yField, cField, sField] = fields
+    const innerW = this.innerW
+    const innerH = this.innerH
+    const margin = this.margin
 
     // 悬停标签
     const tip = getTips(fields)
 
-    // 持久化 g 容器
-    let g = this.svg.select('g.plot-content')
-    if (g.empty()) {
-      g = this.svg
-        .append('g')
-        .attr('class', 'plot-content')
-        .attr('transform', `translate(${margin.left},${margin.top})`)
-    } 
-    else {
-      g.selectAll(':not(circle)').remove()
-    }
+    let g = this.plotContent
+
+    g.selectAll('g:not(.circles)') // 替换为你的父 <g> 的选择器
+      .remove()
 
     // 数据预处理
     const DF = new DataFrame(data, fields, 3, innerW, innerH)
@@ -237,31 +250,32 @@ export class GraphBuilder {
    * @param {number} innerH 绘图区高度
    * @param {Object} margin 边距对象 {top, right, bottom, left}
    */
-  drawHistogram(data, fields, innerW, innerH, margin) {
+  drawHistogram(data, fields) {
     const [xField] = fields
+    const innerW = this.innerW
+    const innerH = this.innerH
+    const margin = this.margin
+
     const histTitle = xField ? xField : ''
     d3.select('.sup-title').text(histTitle)
 
     // 创建或清空容器
     let g = this.svg.select('g.plot-content')
-    if (g.empty()) {
-      g = this.svg
-        .append('g')
-        .attr('class', 'plot-content')
-        .attr('transform', `translate(${margin.left},${margin.top})`)
-    } else {
-      g.selectAll('*').remove()
-    }
+
+    g.selectAll('*')
+      // 动画效果
+      // .transition()
+      // .duration(300)
+      // .style('opacity', 0)
+      .remove()
 
     // 数据提取
     const values = data.map(d => +d[xField]).filter(v => !isNaN(v))
-    console.log(values)
     // X 轴比例尺
     const xScale = d3.scaleLinear().domain(d3.extent(values)).nice().range([0, innerW])
 
     // 分箱规则，ticks 函数会按照图像易读性调整分箱数量
-    const thresholds = xScale.ticks(20)
-    console.log(thresholds)
+    const thresholds = xScale.ticks(12)
 
     // 生成 bins
     const binGen = d3
@@ -351,15 +365,17 @@ export class GraphBuilder {
       .join('rect')
       .attr('class', 'bar')
       .attr('x', d => xScale(d.x0))
-      .attr('y', innerH)
+      // .attr('y', innerH)
+      .attr('y', d => yScale(d.length))
       .attr('width', d => Math.max(0, xScale(d.x1) - xScale(d.x0)))
-      .attr('height', 0)
+      .attr('height', d => innerH - yScale(d.length))
+      // .attr('height', 0)
+      .attr('opacity', 0)
       .on('mouseover', tip.show)
       .on('mouseout', tip.hide)
       .transition()
-      .duration(500)
-      .attr('y', d => yScale(d.length))
-      .attr('height', d => innerH - yScale(d.length))
+      .duration(300)
+      .attr('opacity', 1)
 
     const selG = g.append('g').attr('class', 'bars-selected')
 

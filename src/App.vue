@@ -72,7 +72,7 @@
 
   import { isDiscrete } from './utils/data.js'
 
-  import { GraphBuilder } from '@/utils/chart.js';
+  import { initGraphBuilder, PlotLauncher } from '@/utils/chart.js';
 
   const datasetName = "explore.csv";
   const margin = { top: 50, right: 150, bottom: 60, left: 60 };
@@ -95,7 +95,10 @@
   const cField = ref('');
   const sField = ref('');
   const svg = ref(null);
-  const gb = ref(null)
+  const pl = ref(null)
+
+  let subW = innerW + margin.left + margin.right
+  let subH = innerH + margin.top + margin.bottom
 
   onMounted(async () => {
     const raw = await d3.csv('/dataset/explore_more.csv', d3.autoType);
@@ -104,7 +107,9 @@
 
     data.value = raw;
     columns.value = raw.columns || Object.keys(raw[0] || {});
-    gb.value = new GraphBuilder(svg.value, innerW, innerH, outerW, outerH, margin)
+    initGraphBuilder(svg.value, innerW, innerH, outerW, outerH, margin)
+    
+    pl.value = new PlotLauncher(svg.value, subW, subH, margin, 1)
   });
 
   function highlight(event) {
@@ -142,13 +147,10 @@
   // 监听字段变化，更新图表
   watch([xField, yField, cField, sField, selectedChart], () => {
     const fields = [xField.value, yField.value, cField.value, sField.value]
-    if (gb.value) {
-      // gb.value.drawScatter(data.value, fields, innerW, innerH, margin);
-      if (selectedChart.value == "scatter") {
-        gb.value.drawScatter(data.value, fields, innerW, innerH, margin);
-      } else if (selectedChart.value == "histogram") {
-        gb.value.drawHistogram(data.value, [xField.value], innerW, innerH, margin)
-      }
+    if (selectedChart.value == "scatter") {
+      pl.value.drawScatter(data.value, fields);
+    } else if (selectedChart.value == "histogram") {
+      pl.value.drawHistogram(data.value, [xField.value])
     }
   });
 
