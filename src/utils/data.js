@@ -96,7 +96,6 @@ export class DataFrame {
       color: d[this.cField],
       size: d[this.sField],
     }));
-    console.log("plotData", plotData);
 
     return plotData;
   }

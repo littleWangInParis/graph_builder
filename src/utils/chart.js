@@ -1,6 +1,7 @@
 // src/utils/chart.js
 /* 
- TODO xFields 改为 array，拖入就加一个
+ TODO 保存 xScale yScale
+ TODO 动画没了
  TODO 切换图像 zoom 时候轴的变化有问题
  TODO 拖出变量
  TODO 拖拽调整大小
@@ -9,6 +10,8 @@
 import * as d3 from 'd3'
 import d3Tip from 'd3-tip'
 import { DataFrame } from './data'
+
+const brushDispatcher = d3.dispatch('brush')
 
 export function initGraphBuilder(container, innerW, innerH, outerW, outerH, margin) {
   const gbSVG = d3.select(container)
@@ -41,14 +44,20 @@ export function initGraphBuilder(container, innerW, innerH, outerW, outerH, marg
     */
 }
 
+export class GraphBuilder {
+  constructor() {}
+}
+
 export class PlotLauncher {
-  constructor(container, width, height, margin, chartID) {
+  constructor(container, width, height, margin, chartID, xAxisVis = false, yAxisVis = false) {
     this.margin = margin
     this.width = width
     this.height = height
     this.innerW = width - margin.left - margin.right
     this.innerH = height - margin.top - margin.bottom
     this.chartID = chartID
+    this.xAxisVis = xAxisVis
+    this.yAxisVis = yAxisVis
 
     this.svg = d3
       .select(container)
@@ -72,6 +81,22 @@ export class PlotLauncher {
       .attr('y', 0)
       .attr('width', this.innerW)
       .attr('height', this.innerH)
+
+    this.plotContent
+      .append('line')
+      .attr('class', 'border-line')
+      .attr('x1', 0)
+      .attr('y1', 0)
+      .attr('x2', this.innerW)
+      .attr('y2', 0)
+
+    this.plotContent
+      .append('line')
+      .attr('class', 'border-line')
+      .attr('x1', this.innerW)
+      .attr('y1', 0)
+      .attr('x2', this.innerW)
+      .attr('y2', this.innerH)
   }
 
   drawScatter(data, fields) {
@@ -116,49 +141,66 @@ export class PlotLauncher {
       yAxisG = g.append('g').attr('class', 'y axis')
     }
 
-    // 更新坐标轴
-    let xAxis = d3.axisBottom(xScale)
-    let yAxis = d3.axisLeft(yScale)
-    if (DF.xIsDis)
-      xAxis
-        .tickValues(DF.xCategories.map((_, i) => i + 0.5))
-        .tickFormat((_, i) => DF.xCategories[i])
-    if (DF.yIsDis)
-      yAxis
-        .tickValues(DF.yCategories.map((_, i) => i + 0.5))
-        .tickFormat((_, i) => DF.yCategories[i])
-    xAxisG.call(xAxis)
-    yAxisG.call(yAxis)
-
-    // 轴标签
-    let xlabel = xAxisG.select('text.axis-label')
-    if (xlabel.empty()) {
-      xlabel = xAxisG
-        .append('text')
-        .attr('class', 'axis-label x-axis-label')
-        .attr('x', innerW / 2)
-        .attr('y', (margin.bottom * 2) / 3)
-        .attr('text-anchor', 'middle')
-        .attr('font-size', 16)
-        .attr('fill', '#333')
+    if (this.xAxisVis) {
+      let xAxis = d3.axisBottom(xScale)
+      if (DF.xIsDis)
+        xAxis
+          .tickValues(DF.xCategories.map((_, i) => i + 0.5))
+          .tickFormat((_, i) => DF.xCategories[i])
+      xAxisG.call(xAxis)
+      // 轴标签
+      let xlabel = xAxisG.select('text.axis-label')
+      if (xlabel.empty()) {
+        xlabel = xAxisG
+          .append('text')
+          .attr('class', 'axis-label x-axis-label')
+          .attr('x', innerW / 2)
+          .attr('y', (margin.bottom * 2) / 3)
+          .attr('text-anchor', 'middle')
+          .attr('font-size', 16)
+          .attr('fill', '#333')
+      }
+      xlabel.text(xField)
     }
-    xlabel.text(xField)
-
-    let ylabel = yAxisG.select('text.axis-label')
-    if (ylabel.empty()) {
-      ylabel = yAxisG
-        .append('text')
-        .attr('class', 'axis-label y-axis-label')
-        .attr('transform', 'rotate(-90)')
-        .attr('x', -innerH / 2)
-        .attr('y', (-margin.left * 2) / 3)
-        .attr('text-anchor', 'middle')
-        .attr('font-size', 16)
-        .attr('fill', '#333')
+    if (this.yAxisVis) {
+      let yAxis = d3.axisLeft(yScale)
+      if (DF.yIsDis)
+        yAxis
+          .tickValues(DF.yCategories.map((_, i) => i + 0.5))
+          .tickFormat((_, i) => DF.yCategories[i])
+      yAxisG.call(yAxis)
+      let ylabel = yAxisG.select('text.axis-label')
+      if (ylabel.empty()) {
+        ylabel = yAxisG
+          .append('text')
+          .attr('class', 'axis-label y-axis-label')
+          .attr('transform', 'rotate(-90)')
+          .attr('x', -innerH / 2)
+          .attr('y', (-margin.left * 2) / 3)
+          .attr('text-anchor', 'middle')
+          .attr('font-size', 16)
+          .attr('fill', '#333')
+      }
+      ylabel.text(yField)
     }
-    ylabel.text(yField)
 
-    d3.selectAll('.brush').remove()
+    g.selectAll('.brush').remove()
+
+    const externalBrush = selectedIds => {
+      // circles.classed('selected', false).classed('unselected', false)
+
+      if (selectedIds.length === 0) {
+        circles.classed('selected', false)
+        circles.classed('unselected', false)
+      } else {
+        circles
+          .classed('selected', d => selectedIds.includes(d._id))
+          .classed('unselected', d => !selectedIds.includes(d._id))
+      }
+    }
+
+    brushDispatcher.on('brush.' + this.chartID, externalBrush)
+
     const brushBehavior = d3
       .brush()
       .extent([
@@ -181,14 +223,17 @@ export class PlotLauncher {
             selectedIds.push(d._id)
           }
         })
-        if (selectedIds.length === 0) {
-          circles.classed('selected', false)
-          circles.classed('unselected', false)
-        } else {
-          circles
-            .classed('selected', d => selectedIds.includes(d._id))
-            .classed('unselected', d => !selectedIds.includes(d._id))
-        }
+
+        brushDispatcher.call('brush', null, selectedIds, this.chartID)
+
+        // if (selectedIds.length === 0) {
+        //   circles.classed('selected', false)
+        //   circles.classed('unselected', false)
+        // } else {
+        //   circles
+        //     .classed('selected', d => selectedIds.includes(d._id))
+        //     .classed('unselected', d => !selectedIds.includes(d._id))
+        // }
       })
       .on('end', event => {
         if (event.selection !== null) {
@@ -291,35 +336,37 @@ export class PlotLauncher {
     const yScale = d3.scaleLinear().domain([0, yMax]).nice().range([innerH, 0])
 
     // 绘制坐标轴
-    const xAxis = d3.axisBottom(xScale)
-    const yAxis = d3.axisLeft(yScale)
+    if (this.xAxisVis) {
+      const xAxis = d3.axisBottom(xScale)
+      g.append('g')
+        .attr('class', 'x axis')
+        .attr('transform', `translate(0,${innerH})`)
+        .call(xAxis)
+        .append('text')
+        .attr('class', 'axis-label x-axis-label')
+        .attr('x', innerW / 2)
+        .attr('y', (margin.bottom * 2) / 3)
+        .attr('text-anchor', 'middle')
+        .attr('font-size', 16)
+        .attr('fill', '#333')
+        .text(xField)
+    }
 
-    g.append('g')
-      .attr('class', 'x axis')
-      .attr('transform', `translate(0,${innerH})`)
-      .call(xAxis)
-      .append('text')
-      .attr('class', 'axis-label x-axis-label')
-      .attr('x', innerW / 2)
-      .attr('y', (margin.bottom * 2) / 3)
-      .attr('text-anchor', 'middle')
-      .attr('font-size', 16)
-      .attr('fill', '#333')
-      .text(xField)
-
-    g.append('g')
-      .attr('class', 'y axis')
-      .call(yAxis)
-      .append('text')
-      .attr('class', 'axis-label y-axis-label')
-      .attr('transform', 'rotate(-90)')
-      .attr('x', -innerH / 2)
-      .attr('y', (-margin.left * 2) / 3)
-      .attr('text-anchor', 'middle')
-      .attr('font-size', 16)
-      .attr('fill', '#333')
-      .text('Count')
-
+    if (this.yAxisVis) {
+      const yAxis = d3.axisLeft(yScale)
+      g.append('g')
+        .attr('class', 'y axis')
+        .call(yAxis)
+        .append('text')
+        .attr('class', 'axis-label y-axis-label')
+        .attr('transform', 'rotate(-90)')
+        .attr('x', -innerH / 2)
+        .attr('y', (-margin.left * 2) / 3)
+        .attr('text-anchor', 'middle')
+        .attr('font-size', 16)
+        .attr('fill', '#333')
+        .text('Count')
+    }
     // 提示框
     const tip = d3Tip()
       .attr('class', 'd3-tip')
@@ -468,7 +515,7 @@ export class PlotLauncher {
 */
 
 function getTips(fields) {
-  d3.selectAll('.d3-tip').remove()
+  // d3.selectAll('.d3-tip').remove()
   const [xField, yField, cField, sField] = fields
   return d3Tip()
     .attr('class', 'd3-tip')

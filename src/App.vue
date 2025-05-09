@@ -13,7 +13,7 @@
         </li>
       </ul>
     </aside>
-    <div class="right-div">
+    <div class="middle-div">
       <div id="chart-types">
         <ChartScatter :size="plotIconSize" stroke-width="1.5" :stroke="typeMarkerStroke" class="chart-icon"
           @click="changeSelectedChart('scatter')"
@@ -60,6 +60,8 @@
         </div>
 
       </div>
+    </div>
+    <div class="table-div">
 
     </div>
   </div>
@@ -76,9 +78,8 @@
 
   const datasetName = "explore.csv";
   const margin = { top: 50, right: 150, bottom: 60, left: 60 };
-  const svgMargin = { top: 50, right: 0, bottom: 60, left: 60 };
-  const innerW = 650;
-  const innerH = 650;
+  const innerW = 750;
+  const innerH = 750;
   const outerW = innerW + margin.left + margin.right
   const outerH = innerH + margin.top + margin.bottom
   const s = 3
@@ -90,15 +91,14 @@
   const columns = ref([]);
   const data = ref([]);
   const selectedChart = ref('scatter')
-  const xField = ref('');
-  const yField = ref('');
+  const xFields = ref([]);
+  const yFields = ref([]);
   const cField = ref('');
   const sField = ref('');
   const svg = ref(null);
-  const pl = ref(null)
+  // const pl = ref(null)
 
-  let subW = innerW + margin.left + margin.right
-  let subH = innerH + margin.top + margin.bottom
+  let chartId = 0
 
   onMounted(async () => {
     const raw = await d3.csv('/dataset/explore_more.csv', d3.autoType);
@@ -108,8 +108,9 @@
     data.value = raw;
     columns.value = raw.columns || Object.keys(raw[0] || {});
     initGraphBuilder(svg.value, innerW, innerH, outerW, outerH, margin)
-    
-    pl.value = new PlotLauncher(svg.value, subW, subH, margin, 1)
+
+    // pl.value = new PlotLauncher(svg.value, outerW, outerH, margin, 1)
+
   });
 
   function highlight(event) {
@@ -124,11 +125,11 @@
   function handleDrop(event, name) {
     const col = event.dataTransfer.getData("text/plain");
     if (name === "X") {
-      xField.value = col;
+      xFields.value.push(col);
       d3.select(".region-X").classed("region-hidden", true)
     }
     else if (name === "Y") {
-      yField.value = col;
+      yFields.value.push(col);
       d3.select(".region-Y").classed("region-hidden", true)
     }
     else if (name === "C") {
@@ -145,14 +146,38 @@
   }
 
   // 监听字段变化，更新图表
-  watch([xField, yField, cField, sField, selectedChart], () => {
-    const fields = [xField.value, yField.value, cField.value, sField.value]
-    if (selectedChart.value == "scatter") {
-      pl.value.drawScatter(data.value, fields);
-    } else if (selectedChart.value == "histogram") {
-      pl.value.drawHistogram(data.value, [xField.value])
+  watch([xFields, yFields, cField, sField, selectedChart], ([newX, newY, newC, newS, newChart], [oldX, oldY, oldC, oldS, oldChart]) => {
+    const cChanged = newC !== oldC
+    const sChanged = newS !== oldS
+
+    const xNum = Math.max(xFields.value.length, 1)
+    const yNum = Math.max(yFields.value.length, 1)
+    const subW = innerW / xNum
+    const subH = innerH / yNum
+    if (!sChanged && !cChanged) {
+      d3.select(svg.value).selectAll('svg').remove();
     }
-  });
+    for (let i = 0; i < xNum; i++) {
+      for (let j = 0; j < yNum; j++) {
+        const subMargin = { ...margin }
+        subMargin.top = margin.top + (yNum - 1 - j) * subH
+        subMargin.left = margin.left + i * subW
+        subMargin.bottom = outerH - subMargin.top - subH
+        subMargin.right = outerW - subMargin.left - subW
+
+        const yAxisVis = i == 0 ? true : false
+        const xAxisVis = j == 0 ? true : false
+        const pl = new PlotLauncher(svg.value, outerW, outerH, subMargin, chartId, xAxisVis, yAxisVis)
+        const fields = [xFields.value[i], yFields.value[j], cField.value, sField.value]
+        if (selectedChart.value == "scatter") {
+          pl.drawScatter(data.value, fields);
+        } else if (selectedChart.value == "histogram") {
+          pl.drawHistogram(data.value, [xFields.value[i]])
+        }
+        chartId++
+      }
+    }
+  }, { deep: true });
 
   function onDragStart(event, col) {
     event.dataTransfer.setData('text/plain', col);
@@ -286,7 +311,7 @@
     background-color: white;
   }
 
-  .right-div {
+  .middle-div {
     flex: 1;
     padding: 10px 40px;
     background-color: #f5f5f5;
@@ -360,6 +385,11 @@
     font-weight: bold;
   }
 
+  .border-line {
+    stroke-width: 1;
+    stroke: #ccc;
+  }
+
   .d3-tip {
     background-color: white;
     padding: 10px;
@@ -380,7 +410,7 @@
   }
 
   circle.point.unselected {
-    opacity: 0.2;
+    opacity: 0.1;
   }
 
   circle.point.selected {

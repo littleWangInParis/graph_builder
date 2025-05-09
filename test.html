@@ -1,57 +1,143 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>D3 坐标轴 + 网格线</title>
-  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>D3 Scatter Plot with Brush Selection</title>
   <style>
     body {
-      font-family: sans-serif;
+      font-family: Arial, sans-serif;
+      margin: 20px;
     }
-    .axis path,
-    .axis line {
+    .container {
+      display: flex;
+    }
+    #chart {
+      flex: 1;
+    }
+    #table-container {
+      width: 300px;
+      margin-left: 20px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    th, td {
+      padding: 8px;
+      text-align: left;
+      border-bottom: 1px solid #ddd;
+    }
+    tr.selected {
+      background-color: #f0f8ff;
+    }
+    circle {
+      fill: steelblue;
       stroke: #333;
+      stroke-width: 1px;
     }
-    .grid line {
-      stroke: #ccc;
-      stroke-dasharray: 2, 2;
+    circle.selected {
+      fill: orange;
+      stroke: red;
+      stroke-width: 2px;
     }
-    .grid path {
-      display: none;
+    .brush .selection {
+      fill: #777;
+      fill-opacity: 0.3;
+      stroke: #fff;
     }
   </style>
 </head>
 <body>
-  <svg width="600" height="400"></svg>
+  <h2>D3 Scatter Plot with Brush Selection</h2>
+  <div class="container">
+    <div id="chart"></div>
+    <div id="table-container">
+      <table id="data-table"></table>
+    </div>
+  </div>
 
+  <script src="https://d3js.org/d3.v7.min.js"></script>
   <script>
-    const svg = d3.select('svg')
-    const width = +svg.attr('width')
-    const height = +svg.attr('height')
-    const margin = { top: 20, right: 20, bottom: 40, left: 50 }
-    const innerWidth = width - margin.left - margin.right
-    const innerHeight = height - margin.top - margin.bottom
+    // Generate dataset
+    const data = d3.range(30).map((d, i) => ({ id: i, x: Math.random() * 100, y: Math.random() * 100 }));
 
-    const xScale = d3.scaleLinear()
-      .domain([0, 100])
-      .range([0, innerWidth])
+    const margin = { top: 20, right: 20, bottom: 40, left: 40 };
+    const width = 500 - margin.left - margin.right;
+    const height = 500 - margin.top - margin.bottom;
 
-    const yScale = d3.scaleLinear()
-      .domain([0, 100])
-      .range([innerHeight, 0])
+    // Create SVG
+    const svg = d3.select('#chart')
+      .append('svg')
+      .attr('width', width + margin.left + margin.right)
+      .attr('height', height + margin.top + margin.bottom)
+      .append('g')
+      .attr('transform', `translate(${margin.left},${margin.top})`);
 
-    const xAxis = d3.axisBottom(xScale).ticks(10)
-    const yAxis = d3.axisLeft(yScale).ticks(10)
+    // Scales
+    const xScale = d3.scaleLinear().domain([0, 100]).range([0, width]);
+    const yScale = d3.scaleLinear().domain([0, 100]).range([height, 0]);
 
-    const xGrid = d3.axisBottom(xScale)
-      .tickSize(-innerHeight)
-      .tickFormat('')
+    // Axes
+    svg.append('g').attr('transform', `translate(0,${height})`).call(d3.axisBottom(xScale));
+    svg.append('g').call(d3.axisLeft(yScale));
 
-    const yGrid = d3.axisLeft(yScale)
-      .tickSize(-innerWidth)
-      .tickFormat('')
+    // Plot circles
+    const circles = svg.selectAll('circle')
+      .data(data)
+      .join('circle')
+      .attr('cx', d => xScale(d.x))
+      .attr('cy', d => yScale(d.y))
+      .attr('r', 6);
 
-    svg.style("background-color", "orange")
+    // Add brush
+    const brush = d3.brush()
+      .extent([[0, 0], [width, height]])
+      .on('brush end', brushed);
+
+    svg.append('g')
+      .attr('class', 'brush')
+      .call(brush);
+
+    // Create table
+    const table = d3.select('#data-table');
+    table.append('thead').append('tr')
+      .selectAll('th')
+      .data(['id', 'x', 'y'])
+      .join('th')
+      .text(d => d);
+
+    const tbody = table.append('tbody');
+    const rows = tbody.selectAll('tr')
+      .data(data)
+      .join('tr')
+      .attr('id', d => `row-${d.id}`);
+
+    rows.selectAll('td')
+      .data(d => [d.id, d.x.toFixed(2), d.y.toFixed(2)])
+      .join('td')
+      .text(d => d);
+
+    // Brush event handler
+    function brushed({ selection }) {
+      if (selection) {
+        const [[x0, y0], [x1, y1]] = selection;
+
+        circles.classed('selected', d => {
+          const cx = xScale(d.x), cy = yScale(d.y);
+          return x0 <= cx && cx <= x1 && y0 <= cy && cy <= y1;
+        });
+
+        rows.classed('selected', d => {
+          const cx = xScale(d.x), cy = yScale(d.y);
+          return x0 <= cx && cx <= x1 && y0 <= cy && cy <= y1;
+        });
+      } else {
+        circles.classed('selected', false);
+        rows.classed('selected', false);
+      }
+    }
   </script>
 </body>
 </html>
