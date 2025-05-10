@@ -1,18 +1,21 @@
 <template>
   <div class="container">
-    <aside class="sidebar">
-      <h1>Graph Builder</h1>
-      <p style="padding: 10px 0">Dataset: {{ datasetName }}</p>
-      <ul>
-        <li v-for="col in columnInfo" :key="col.name" draggable="true" @dragstart="onDragStart($event, col.name)"
-          class="col-item">
-          <ChartNoAxesColumn v-if="col.isDiscrete" :size="typeMarkerSize" stroke-width="3" stroke="#a52420"
-            class="icon-continous" />
-          <ChartNoAxesCombined v-else :size="typeMarkerSize" stroke-width="2" stroke="#4c4b99" class="icon-discrete" />
-          <span>{{ col.name }}</span>
-        </li>
-      </ul>
-    </aside>
+    <div class="left-div">
+      <aside class="sidebar">
+        <h1>Graph Builder</h1>
+        <p style="padding: 10px 0">Dataset: {{ datasetName }}</p>
+        <ul>
+          <li v-for="col in columnInfo" :key="col.name" draggable="true" @dragstart="onDragStart($event, col.name)"
+            class="col-item">
+            <ChartNoAxesColumn v-if="col.isDiscrete" :size="typeMarkerSize" stroke-width="3" stroke="#a52420"
+              class="icon-continous" />
+            <ChartNoAxesCombined v-else :size="typeMarkerSize" stroke-width="2" stroke="#4c4b99"
+              class="icon-discrete" />
+            <span>{{ col.name }}</span>
+          </li>
+        </ul>
+      </aside>
+    </div>
     <div class="middle-div">
       <div id="chart-types">
         <ChartScatter :size="plotIconSize" stroke-width="1.5" :stroke="typeMarkerStroke" class="chart-icon"
@@ -62,7 +65,9 @@
       </div>
     </div>
     <div class="table-div">
+      <table id="data-table">
 
+      </table>
     </div>
   </div>
 </template>
@@ -72,7 +77,7 @@
   import * as d3 from 'd3';
   import { ChartScatter, ChartLine, ChartColumn, ChartCandlestick, ChartNoAxesColumn, ChartNoAxesCombined } from 'lucide-vue-next';
 
-  import { isDiscrete } from './utils/data.js'
+  import { isDiscrete, loadDataTable } from './utils/data.js'
 
   import { initGraphBuilder, PlotLauncher } from '@/utils/chart.js';
 
@@ -108,7 +113,7 @@
     data.value = raw;
     columns.value = raw.columns || Object.keys(raw[0] || {});
     initGraphBuilder(svg.value, innerW, innerH, outerW, outerH, margin)
-
+    loadDataTable(raw)
     // pl.value = new PlotLauncher(svg.value, outerW, outerH, margin, 1)
 
   });
@@ -154,9 +159,10 @@
     const yNum = Math.max(yFields.value.length, 1)
     const subW = innerW / xNum
     const subH = innerH / yNum
-    if (!sChanged && !cChanged) {
-      d3.select(svg.value).selectAll('svg').remove();
-    }
+    // if (!sChanged && !cChanged) {
+    //   d3.select(svg.value).selectAll('svg').remove();
+    // }
+    d3.select(svg.value).selectAll('svg').remove();
     for (let i = 0; i < xNum; i++) {
       for (let j = 0; j < yNum; j++) {
         const subMargin = { ...margin }
@@ -245,15 +251,22 @@
     display: flex;
     font-family: Arial;
     height: 100vh;
+    overflow-x: auto;
   }
 
   h1 {
     padding-bottom: 10px;
   }
 
+  .left-div {
+    box-shadow: 10px 0 10px rgba(0, 0, 0, 0.05);
+    z-index: 1;
+  }
+
   .sidebar {
     /* 这样窗口缩小元素也不会小 */
     min-width: 180px;
+    flex: 0 0 10%;
     /* border-right: 1px solid #ccc; */
     padding: 10px;
     height: 100%;
@@ -299,22 +312,24 @@
   }
 
   .chart-icon:hover {
-    stroke: black;
+    stroke: #333;
     stroke-width: 2;
     cursor: pointer;
     background-color: white;
   }
 
   .chart-icon--active {
-    stroke: black;
+    stroke: #333;
     stroke-width: 2;
     background-color: white;
   }
 
   .middle-div {
-    flex: 1;
+    /* flex: 1; */
     padding: 10px 40px;
     background-color: #f5f5f5;
+    min-width: 1000px;
+    flex: 0 0 50%;
   }
 
   #plot-area {
@@ -334,7 +349,6 @@
     position: absolute;
     top: 0;
     left: 0;
-    /* background-color: azure; */
   }
 
   .region {
@@ -426,7 +440,6 @@
     stroke-width: 2
   }
 
-
   .bar {
     fill: #dde0f0;
     stroke: #333;
@@ -435,5 +448,73 @@
   .bar-selected {
     fill: url(#hist-stripes);
     stroke: #333;
+  }
+
+  .table-div {
+    flex: 1;
+    /* 等价于 flex: 1 1 0 */
+    min-width: 400px;
+    background: #fff;
+    overflow: auto;
+    box-shadow: -10px 0 10px rgba(0, 0, 0, 0.05);
+    z-index: 1;
+  }
+
+  #data-table {
+    border-collapse: collapse;
+    margin: 0;
+    /* 原来只有 margin-left:0 */
+    max-height: 100vh;
+  }
+
+  /* 表头 & 单元格 基础样式 */
+  #data-table th,
+  #data-table td {
+    padding: 9px;
+    text-align: center;
+    border-bottom: 1px solid #ccc;
+    white-space: nowrap;
+    /* transition: background-color .1s ease, color .1s ease; */
+  }
+
+  /* 表头单独样式 */
+  #data-table th {
+    background: #f5f5f5;
+    border: none;
+  }
+
+  /* 固定首列 & 表头 */
+  #data-table th:first-child,
+  #data-table td:first-child {
+    position: sticky;
+    left: 0;
+    background: #f5f5f5;
+    color: #333;
+    z-index: 1;
+    font-weight: bold;
+  }
+
+  /* 固定表头 */
+  #data-table thead {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+  }
+
+  /* 鼠标悬停高亮 */
+  #data-table tr:hover td {
+    background: #ccc;
+    color: #333;
+  }
+
+  /* 选中行高亮 */
+  #data-table tr.selected td {
+    background: #7986CB;
+    color: #fff;
+  }
+
+  #data-table tr.selected th:first-child,
+  #data-table tr.selected td:first-child {
+    background-color: #5C6BC0;
   }
 </style>

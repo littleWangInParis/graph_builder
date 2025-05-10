@@ -1,143 +1,101 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>D3 Scatter Plot with Brush Selection</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 20px;
-    }
-    .container {
-      display: flex;
-    }
-    #chart {
-      flex: 1;
-    }
-    #table-container {
-      width: 300px;
-      margin-left: 20px;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-    th, td {
-      padding: 8px;
-      text-align: left;
-      border-bottom: 1px solid #ddd;
-    }
-    tr.selected {
-      background-color: #f0f8ff;
-    }
-    circle {
-      fill: steelblue;
-      stroke: #333;
-      stroke-width: 1px;
-    }
-    circle.selected {
-      fill: orange;
-      stroke: red;
-      stroke-width: 2px;
-    }
-    .brush .selection {
-      fill: #777;
-      fill-opacity: 0.3;
-      stroke: #fff;
-    }
-  </style>
-</head>
-<body>
-  <h2>D3 Scatter Plot with Brush Selection</h2>
-  <div class="container">
-    <div id="chart"></div>
-    <div id="table-container">
-      <table id="data-table"></table>
-    </div>
-  </div>
-
-  <script src="https://d3js.org/d3.v7.min.js"></script>
-  <script>
-    // Generate dataset
-    const data = d3.range(30).map((d, i) => ({ id: i, x: Math.random() * 100, y: Math.random() * 100 }));
-
-    const margin = { top: 20, right: 20, bottom: 40, left: 40 };
-    const width = 500 - margin.left - margin.right;
-    const height = 500 - margin.top - margin.bottom;
-
-    // Create SVG
-    const svg = d3.select('#chart')
-      .append('svg')
-      .attr('width', width + margin.left + margin.right)
-      .attr('height', height + margin.top + margin.bottom)
-      .append('g')
-      .attr('transform', `translate(${margin.left},${margin.top})`);
-
-    // Scales
-    const xScale = d3.scaleLinear().domain([0, 100]).range([0, width]);
-    const yScale = d3.scaleLinear().domain([0, 100]).range([height, 0]);
-
-    // Axes
-    svg.append('g').attr('transform', `translate(0,${height})`).call(d3.axisBottom(xScale));
-    svg.append('g').call(d3.axisLeft(yScale));
-
-    // Plot circles
-    const circles = svg.selectAll('circle')
-      .data(data)
-      .join('circle')
-      .attr('cx', d => xScale(d.x))
-      .attr('cy', d => yScale(d.y))
-      .attr('r', 6);
-
-    // Add brush
-    const brush = d3.brush()
-      .extent([[0, 0], [width, height]])
-      .on('brush end', brushed);
-
-    svg.append('g')
-      .attr('class', 'brush')
-      .call(brush);
-
-    // Create table
-    const table = d3.select('#data-table');
-    table.append('thead').append('tr')
-      .selectAll('th')
-      .data(['id', 'x', 'y'])
-      .join('th')
-      .text(d => d);
-
-    const tbody = table.append('tbody');
-    const rows = tbody.selectAll('tr')
-      .data(data)
-      .join('tr')
-      .attr('id', d => `row-${d.id}`);
-
-    rows.selectAll('td')
-      .data(d => [d.id, d.x.toFixed(2), d.y.toFixed(2)])
-      .join('td')
-      .text(d => d);
-
-    // Brush event handler
-    function brushed({ selection }) {
-      if (selection) {
-        const [[x0, y0], [x1, y1]] = selection;
-
-        circles.classed('selected', d => {
-          const cx = xScale(d.x), cy = yScale(d.y);
-          return x0 <= cx && cx <= x1 && y0 <= cy && cy <= y1;
-        });
-
-        rows.classed('selected', d => {
-          const cx = xScale(d.x), cy = yScale(d.y);
-          return x0 <= cx && cx <= x1 && y0 <= cy && cy <= y1;
-        });
-      } else {
-        circles.classed('selected', false);
-        rows.classed('selected', false);
+  <head>
+    <meta charset="UTF-8" />
+    <title>Scatter Plot Matrix in Table</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+      table {
+        border-collapse: collapse;
+        /* margin: 20px auto; */
       }
-    }
-  </script>
-</body>
+      td {
+        border: 0px;
+        padding: 0px;
+      }
+      svg {
+        background: white;
+      }
+      .dot {
+        fill: steelblue;
+        opacity: 0.7;
+      }
+      .axis path,
+      .axis line {
+        stroke: #999;
+        shape-rendering: crispEdges;
+      }
+      /* 这个非常重要 */
+      svg {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <table>
+      <tr>
+        <td><svg id="svg1" width="300" height="300"></svg></td>
+        <td><svg id="svg2" width="300" height="300"></svg></td>
+      </tr>
+      <tr>
+        <td><svg id="svg3" width="300" height="300"></svg></td>
+        <td><svg id="svg4" width="300" height="300"></svg></td>
+      </tr>
+    </table>
+
+    <script>
+      const data = d3.range(100).map(() => ({
+        Var1: Math.random() * 100,
+        Var2: Math.random() * 100,
+        Var3: Math.random() * 100,
+        Var4: Math.random() * 100,
+      }))
+
+      const pairs = [
+        ['Var1', 'Var2'],
+        ['Var1', 'Var3'],
+        ['Var2', 'Var3'],
+        ['Var2', 'Var4'],
+      ]
+
+      const size = 300
+      const margin = { top: 0, right: 0, bottom: 0, left: 0 }
+      const innerWidth = size - margin.left - margin.right
+      const innerHeight = size - margin.top - margin.bottom
+
+      pairs.forEach(([xVar, yVar], i) => {
+        const svg = d3.select(`#svg${i + 1}`)
+        const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`)
+
+        const x = d3
+          .scaleLinear()
+          .domain(d3.extent(data, d => d[xVar]))
+          .nice()
+          .range([0, innerWidth])
+
+        const y = d3
+          .scaleLinear()
+          .domain(d3.extent(data, d => d[yVar]))
+          .nice()
+          .range([innerHeight, 0])
+
+        // X Axis
+        g.append('g').attr('transform', `translate(0,${innerHeight})`)
+        .call(d3.axisBottom(x).ticks(5));
+
+        // Y Axis
+        g.append('g')
+        .call(d3.axisLeft(y).ticks(5));
+
+        // Dots
+        g.selectAll('circle')
+          .data(data)
+          .join('circle')
+          .attr('class', 'dot')
+          .attr('cx', d => x(d[xVar]))
+          .attr('cy', d => y(d[yVar]))
+          .attr('r', 3)
+      })
+    </script>
+  </body>
 </html>

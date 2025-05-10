@@ -129,7 +129,7 @@ export class PlotLauncher {
     let newYScale = yScale
 
     // 过渡对象
-    const t = this.svg.transition().duration(500)
+    // const t = this.svg.transition().duration(500)
 
     // 坐标轴（第一次创建后复用）
     let xAxisG = g.select('g.x.axis')
@@ -185,17 +185,20 @@ export class PlotLauncher {
     }
 
     g.selectAll('.brush').remove()
+    const rows = d3.selectAll('.table-div #data-table tbody tr')
 
     const externalBrush = selectedIds => {
-      // circles.classed('selected', false).classed('unselected', false)
-
       if (selectedIds.length === 0) {
         circles.classed('selected', false)
         circles.classed('unselected', false)
+
+        rows.classed('selected', false)
       } else {
         circles
           .classed('selected', d => selectedIds.includes(d._id))
           .classed('unselected', d => !selectedIds.includes(d._id))
+
+        rows.classed('selected', (d, i) => selectedIds.includes(i))
       }
     }
 
@@ -225,15 +228,6 @@ export class PlotLauncher {
         })
 
         brushDispatcher.call('brush', null, selectedIds, this.chartID)
-
-        // if (selectedIds.length === 0) {
-        //   circles.classed('selected', false)
-        //   circles.classed('unselected', false)
-        // } else {
-        //   circles
-        //     .classed('selected', d => selectedIds.includes(d._id))
-        //     .classed('unselected', d => !selectedIds.includes(d._id))
-        // }
       })
       .on('end', event => {
         if (event.selection !== null) {
@@ -266,12 +260,12 @@ export class PlotLauncher {
             .attr('cy', d => yScale(d._y) + (DF.yIsDis && !DF.xIsDis ? d._offset : 0))
             .attr('r', 0)
             .attr('fill', d => d._color)
-            .transition(t)
+            // .transition(t)
             .attr('r', d => d._size),
         // Update
         update =>
           update
-            .transition(t)
+            // .transition(t)
             // .delay((d, i) => i * 0.5) // 如果需要延迟动画
             .attr('cx', d => xScale(d._x) + (DF.xIsDis && !DF.yIsDis ? d._offset : 0))
             .attr('cy', d => yScale(d._y) + (DF.yIsDis && !DF.xIsDis ? d._offset : 0))
@@ -279,7 +273,7 @@ export class PlotLauncher {
             .attr('fill', d => d._color),
 
         // Exit
-        exit => exit.transition(t).attr('r', 0).remove()
+        // exit => exit.transition(t).attr('r', 0).remove()
       )
       .on('mouseover', tip.show)
       .on('mouseout', tip.hide)
@@ -305,14 +299,14 @@ export class PlotLauncher {
     d3.select('.sup-title').text(histTitle)
 
     // 创建或清空容器
-    let g = this.svg.select('g.plot-content')
+    let g = this.plotContent
 
-    g.selectAll('*')
-      // 动画效果
-      // .transition()
-      // .duration(300)
-      // .style('opacity', 0)
-      .remove()
+    // g.selectAll('*')
+    // 动画效果
+    // .transition()
+    // .duration(300)
+    // .style('opacity', 0)
+    // .remove()
 
     // 数据提取
     const values = data.map(d => +d[xField]).filter(v => !isNaN(v))
@@ -417,10 +411,10 @@ export class PlotLauncher {
       .attr('width', d => Math.max(0, xScale(d.x1) - xScale(d.x0)))
       .attr('height', d => innerH - yScale(d.length))
       // .attr('height', 0)
-      .attr('opacity', 0)
+      // .attr('opacity', 0)
       .on('mouseover', tip.show)
       .on('mouseout', tip.hide)
-      .transition()
+      // .transition()
       .duration(300)
       .attr('opacity', 1)
 
@@ -522,6 +516,7 @@ function getTips(fields) {
     .offset([-5, 0])
     .html(function (event, d) {
       let hoverToolTips = '<table>'
+      hoverToolTips += `<tr><td class="name">行</td><td>: ${d._id + 1}</td></tr>`
       if (xField) hoverToolTips += `<tr><td class="name">${xField}</td><td>: ${d.x}</td></tr>`
       if (yField) hoverToolTips += `<tr><td class="name">${yField}</td><td>: ${d.y}</td></tr>`
       if (cField) hoverToolTips += `<tr><td class="name">${cField}</td><td>: ${d.color}</td></tr>`
