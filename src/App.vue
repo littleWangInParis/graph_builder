@@ -33,6 +33,7 @@
       </div>
       <div id="plot-area">
         <svg ref="svg" :width="outerW" :height="outerH" id="plot-svg"></svg>
+        <table id="plot-matrix"></table>
         <div id="plot-configs">
           <div class="left-config">
             <div class="region region-Y" :style="regionYStyle" @dragover.prevent @dragenter="highlight($event)"
@@ -80,6 +81,20 @@
   import { isDiscrete, loadDataTable } from './utils/data.js'
 
   import { initGraphBuilder, PlotLauncher } from '@/utils/chart.js';
+
+  import { calculateMaxBins } from '@/utils/tools.js'
+
+  /**
+   * 初始化参数
+   * @param data 原始数据数组
+   * @param innerW 绘图区域宽度
+   * @param innerH 绘图区域高度
+   * @param outerW 包括配置区域在内的宽度
+   * @param outerH 包括配置区域在内的高度
+   * @param s 配置区域的间隙大小
+   * @param widgetH 配置组件的宽度
+   * @param svg 配置白色背景板的 svg
+   */
 
   const datasetName = "explore.csv";
   const margin = { top: 50, right: 150, bottom: 60, left: 60 };
@@ -157,30 +172,55 @@
 
     const xNum = Math.max(xFields.value.length, 1)
     const yNum = Math.max(yFields.value.length, 1)
-    const subW = innerW / xNum
-    const subH = innerH / yNum
-    // if (!sChanged && !cChanged) {
-    //   d3.select(svg.value).selectAll('svg').remove();
-    // }
-    d3.select(svg.value).selectAll('svg').remove();
-    for (let i = 0; i < xNum; i++) {
-      for (let j = 0; j < yNum; j++) {
-        const subMargin = { ...margin }
-        subMargin.top = margin.top + (yNum - 1 - j) * subH
-        subMargin.left = margin.left + i * subW
-        subMargin.bottom = outerH - subMargin.top - subH
-        subMargin.right = outerW - subMargin.left - subW
+    const subInnerW = innerW / xNum
+    const subInnerH = innerH / yNum
 
-        const yAxisVis = i == 0 ? true : false
-        const xAxisVis = j == 0 ? true : false
-        const pl = new PlotLauncher(svg.value, outerW, outerH, subMargin, chartId, xAxisVis, yAxisVis)
-        const fields = [xFields.value[i], yFields.value[j], cField.value, sField.value]
-        if (selectedChart.value == "scatter") {
+    const plotMatrix = d3.select("#plot-matrix")
+    plotMatrix.html('')
+
+    d3.selectAll('.d3-tip').remove()
+
+    let yMax
+    if (selectedChart.value == "histogram") {
+      yMax = calculateMaxBins(xFields.value, data, subInnerW)
+    }
+    for (let j = 0; j < yNum; j++) {
+      const row = plotMatrix.append('tr');
+      for (let i = 0; i < xNum; i++) {
+        // 每个单元格
+        const cell = row.append('td').style('padding', '0');
+        // 计算子图的 margin
+        const subMargin = {
+          top: 0,
+          left: i == 0 ? 60 : 0,
+          bottom: j == yNum - 1 ? 60 : 0,
+          right: 0
+        };
+
+        // 可见只在第一行／第一列显示坐标轴
+        const xAxisVis = j === yNum - 1;
+        const yAxisVis = i === 0;
+
+        // 在 <td> 里 new PlotLauncher
+        console.log(xAxisVis, yAxisVis)
+        const pl = new PlotLauncher(
+          cell.node(),
+          subInnerW,
+          subInnerH,
+          subMargin,
+          chartId++,
+          xAxisVis,
+          yAxisVis
+        );
+
+        // 根据选中的 chart 类型调用绘图
+        const fields = [xFields.value[i], yFields.value[j], cField.value, sField.value];
+        if (selectedChart.value === 'scatter') {
           pl.drawScatter(data.value, fields);
-        } else if (selectedChart.value == "histogram") {
-          pl.drawHistogram(data.value, [xFields.value[i]])
+        } else {
+          console.log(yMax)
+          pl.drawHistogram(data.value, [xFields.value[i]], yMax);
         }
-        chartId++
       }
     }
   }, { deep: true });
@@ -256,6 +296,10 @@
 
   h1 {
     padding-bottom: 10px;
+    background: linear-gradient(90deg, #5C6BC0, #EF5350);
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: 3px 3px 2px rgba(0, 0, 0, 0.1);
   }
 
   .left-div {
@@ -402,6 +446,15 @@
   .border-line {
     stroke-width: 1;
     stroke: #ccc;
+  }
+
+  #plot-matrix {
+    transform: translate(0, 50px);
+    border-collapse: collapse;
+  }
+
+  #plot-matrix svg {
+    display: block;
   }
 
   .d3-tip {

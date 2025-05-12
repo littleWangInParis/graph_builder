@@ -1,11 +1,7 @@
 // src/utils/chart.js
 /* 
- TODO 保存 xScale yScale
- TODO 动画没了
- TODO 切换图像 zoom 时候轴的变化有问题
  TODO 拖出变量
  TODO 拖拽调整大小
-
  */
 import * as d3 from 'd3'
 import d3Tip from 'd3-tip'
@@ -42,19 +38,38 @@ export function initGraphBuilder(container, innerW, innerH, outerW, outerH, marg
     viewPort 是展示照片的相框
     SVG 的 width 和 height 其实是设置视窗 viewPort 的 
     */
-}
 
-export class GraphBuilder {
-  constructor() {}
+  // 绘制直方图的底纹
+  const stripedens = 7
+  const pattern = gbSVG
+    .append('defs')
+    .append('pattern')
+    .attr('id', 'hist-stripes')
+    .attr('patternUnits', 'userSpaceOnUse')
+    .attr('width', innerW)
+    .attr('height', innerH)
+
+  // 背景
+  pattern.append('rect').attr('width', innerW).attr('height', innerH)
+
+  // 斜线：左上到右下
+  for (let i = -innerH; i < innerH; i += stripedens) {
+    pattern
+      .append('line')
+      .attr('x1', 0)
+      .attr('y1', i)
+      .attr('x2', innerW)
+      .attr('y2', innerH + i)
+  }
 }
 
 export class PlotLauncher {
-  constructor(container, width, height, margin, chartID, xAxisVis = false, yAxisVis = false) {
+  constructor(container, innerW, innerH, margin, chartID, xAxisVis = false, yAxisVis = false) {
     this.margin = margin
-    this.width = width
-    this.height = height
-    this.innerW = width - margin.left - margin.right
-    this.innerH = height - margin.top - margin.bottom
+    const width = innerW + margin.left + margin.right
+    const height = innerH + margin.top + margin.bottom
+    this.innerW = innerW
+    this.innerH = innerH
     this.chartID = chartID
     this.xAxisVis = xAxisVis
     this.yAxisVis = yAxisVis
@@ -97,9 +112,12 @@ export class PlotLauncher {
       .attr('y1', 0)
       .attr('x2', this.innerW)
       .attr('y2', this.innerH)
+
+    this.yScale = null
+    this.xScale = null
   }
 
-  drawScatter(data, fields) {
+  drawScatter(data, fields, scales) {
     const [xField, yField, cField, sField] = fields
     const innerW = this.innerW
     const innerH = this.innerH
@@ -109,9 +127,6 @@ export class PlotLauncher {
     const tip = getTips(fields)
 
     let g = this.plotContent
-
-    g.selectAll('g:not(.circles)') // 替换为你的父 <g> 的选择器
-      .remove()
 
     // 数据预处理
     const DF = new DataFrame(data, fields, 3, innerW, innerH)
@@ -125,11 +140,10 @@ export class PlotLauncher {
     // 比例尺
     const xScale = d3.scaleLinear().domain(DF.getRange('x')).nice().range([0, innerW])
     const yScale = d3.scaleLinear().domain(DF.getRange('y')).nice().range([innerH, 0])
+
+    // deprecated 本来是留给缩放用的
     let newXScale = xScale
     let newYScale = yScale
-
-    // 过渡对象
-    // const t = this.svg.transition().duration(500)
 
     // 坐标轴（第一次创建后复用）
     let xAxisG = g.select('g.x.axis')
@@ -142,7 +156,8 @@ export class PlotLauncher {
     }
 
     if (this.xAxisVis) {
-      let xAxis = d3.axisBottom(xScale)
+      const xTicks = xScale.ticks().slice(1, -1)
+      let xAxis = d3.axisBottom(xScale).tickValues(xTicks)
       if (DF.xIsDis)
         xAxis
           .tickValues(DF.xCategories.map((_, i) => i + 0.5))
@@ -163,7 +178,8 @@ export class PlotLauncher {
       xlabel.text(xField)
     }
     if (this.yAxisVis) {
-      let yAxis = d3.axisLeft(yScale)
+      const yTicks = yScale.ticks().slice(1, -1)
+      let yAxis = d3.axisLeft(yScale).tickValues(yTicks)
       if (DF.yIsDis)
         yAxis
           .tickValues(DF.yCategories.map((_, i) => i + 0.5))
@@ -184,7 +200,7 @@ export class PlotLauncher {
       ylabel.text(yField)
     }
 
-    g.selectAll('.brush').remove()
+    // g.selectAll('.brush').remove()
     const rows = d3.selectAll('.table-div #data-table tbody tr')
 
     const externalBrush = selectedIds => {
@@ -270,7 +286,7 @@ export class PlotLauncher {
             .attr('cx', d => xScale(d._x) + (DF.xIsDis && !DF.yIsDis ? d._offset : 0))
             .attr('cy', d => yScale(d._y) + (DF.yIsDis && !DF.xIsDis ? d._offset : 0))
             .attr('r', d => d._size)
-            .attr('fill', d => d._color),
+            .attr('fill', d => d._color)
 
         // Exit
         // exit => exit.transition(t).attr('r', 0).remove()
@@ -281,15 +297,7 @@ export class PlotLauncher {
     this.svg.call(tip)
   }
 
-  /**
-   * 绘制直方图
-   * @param {Array<Object>} data 原始数据数组
-   * @param {Array<string>} fields 字段数组，取第一个字段作为绘制目标
-   * @param {number} innerW 绘图区宽度
-   * @param {number} innerH 绘图区高度
-   * @param {Object} margin 边距对象 {top, right, bottom, left}
-   */
-  drawHistogram(data, fields) {
+  drawHistogram(data, fields, yMax) {
     const [xField] = fields
     const innerW = this.innerW
     const innerH = this.innerH
@@ -301,17 +309,11 @@ export class PlotLauncher {
     // 创建或清空容器
     let g = this.plotContent
 
-    // g.selectAll('*')
-    // 动画效果
-    // .transition()
-    // .duration(300)
-    // .style('opacity', 0)
-    // .remove()
-
     // 数据提取
-    const values = data.map(d => +d[xField]).filter(v => !isNaN(v))
+    const df = data.map((d, i) => ({ _id: i, _x: +d[xField] }))
+    const xValues = data.map(d => +d[xField])
     // X 轴比例尺
-    const xScale = d3.scaleLinear().domain(d3.extent(values)).nice().range([0, innerW])
+    const xScale = d3.scaleLinear().domain(d3.extent(xValues)).nice().range([0, innerW])
 
     // 分箱规则，ticks 函数会按照图像易读性调整分箱数量
     const thresholds = xScale.ticks(12)
@@ -326,12 +328,12 @@ export class PlotLauncher {
     const bins = binGen(data)
 
     // Y 轴比例尺
-    const yMax = d3.max(bins, d => d.length)
     const yScale = d3.scaleLinear().domain([0, yMax]).nice().range([innerH, 0])
 
     // 绘制坐标轴
     if (this.xAxisVis) {
-      const xAxis = d3.axisBottom(xScale)
+      const xTicks = xScale.ticks().slice(1, -1)
+      const xAxis = d3.axisBottom(xScale).tickValues(xTicks)
       g.append('g')
         .attr('class', 'x axis')
         .attr('transform', `translate(0,${innerH})`)
@@ -347,7 +349,8 @@ export class PlotLauncher {
     }
 
     if (this.yAxisVis) {
-      const yAxis = d3.axisLeft(yScale)
+      const yTicks = yScale.ticks().slice(1, -1)
+      const yAxis = d3.axisLeft(yScale).tickValues(yTicks)
       g.append('g')
         .attr('class', 'y axis')
         .call(yAxis)
@@ -377,45 +380,17 @@ export class PlotLauncher {
     // 绘制条形
     const barsG = g.append('g').attr('class', 'bars').attr('clip-path', 'url(#plot-clip)')
 
-    const stripedens = 7
-
-    const pattern = g
-      .append('defs')
-      .append('pattern')
-      .attr('id', 'hist-stripes')
-      .attr('patternUnits', 'userSpaceOnUse')
-      .attr('width', innerW)
-      .attr('height', innerH)
-
-    // 背景
-    pattern.append('rect').attr('width', innerW).attr('height', innerH)
-
-    // 斜线：左上到右下
-    for (let i = -innerH; i < innerH; i += stripedens) {
-      pattern
-        .append('line')
-        .attr('x1', 0)
-        .attr('y1', i)
-        .attr('x2', innerW)
-        .attr('y2', innerH + i)
-    }
-
     barsG
       .selectAll('rect.bar')
       .data(bins)
       .join('rect')
       .attr('class', 'bar')
       .attr('x', d => xScale(d.x0))
-      // .attr('y', innerH)
       .attr('y', d => yScale(d.length))
       .attr('width', d => Math.max(0, xScale(d.x1) - xScale(d.x0)))
       .attr('height', d => innerH - yScale(d.length))
-      // .attr('height', 0)
-      // .attr('opacity', 0)
       .on('mouseover', tip.show)
       .on('mouseout', tip.hide)
-      // .transition()
-      .duration(300)
       .attr('opacity', 1)
 
     const selG = g.append('g').attr('class', 'bars-selected')
@@ -435,26 +410,9 @@ export class PlotLauncher {
         }
         const x0 = sel[0][0]
         const x1 = sel[1][0]
-        const filtered = values.filter(v => xScale(v) >= x0 && xScale(v) <= x1)
-        // console.log(filtered)
-
-        const newBins = d3
-          .bin()
-          .value(d => d)
-          .domain(xScale.domain())
-          .thresholds(thresholds)(filtered)
-
-        // console.log(newBins)
-        selG.selectAll('rect').remove()
-        selG
-          .selectAll('rect')
-          .data(newBins)
-          .join('rect')
-          .attr('class', 'bar-selected')
-          .attr('x', d => xScale(d.x0))
-          .attr('y', d => yScale(d.length))
-          .attr('width', d => Math.max(0, xScale(d.x1) - xScale(d.x0)))
-          .attr('height', d => innerH - yScale(d.length))
+        const selectedIds = df.filter(d => xScale(d._x) >= x0 && xScale(d._x) <= x1).map(d => d._id)
+        console.log(selectedIds)
+        brushDispatcher.call('brush', null, selectedIds, this.chartID)
       })
       .on('end', event => {
         if (event.selection !== null) {
@@ -462,51 +420,31 @@ export class PlotLauncher {
         }
       })
 
+    const rows = d3.selectAll('.table-div #data-table tbody tr')
+
+    const externalBrush = selectedIds => {
+      rows.classed('selected', (_, i) => selectedIds.includes(i))
+      const newXValues = df.filter(d => selectedIds.includes(d._id)).map(d => d._x)
+      const newBins = d3
+        .bin()
+        .value(d => d)
+        .domain(xScale.domain())
+        .thresholds(thresholds)(newXValues)
+
+      selG
+        .selectAll('rect')
+        .data(newBins)
+        .join('rect')
+        .attr('class', 'bar-selected')
+        .attr('x', d => xScale(d.x0))
+        .attr('y', d => yScale(d.length))
+        .attr('width', d => Math.max(0, xScale(d.x1) - xScale(d.x0)))
+        .attr('height', d => innerH - yScale(d.length))
+    }
+    brushDispatcher.on('brush.' + this.chartID, externalBrush)
     const brushG = g.append('g').attr('class', 'brush').call(brushBehavior)
-    // 这样可以让 tips 显示 但是无法应用 brush 了
-    // brushG.select('.overlay').style('pointer-events', 'none')
   }
 }
-
-/*
-  // 定义缩放行为
-  const zoomBehavior = d3
-    .zoom()
-    .scaleExtent([0.7, 3])
-    .filter(event => event instanceof WheelEvent)
-    // .translateExtent([
-    //   [0, 0],
-    //   [innerW, innerH],
-    // ]) // 可平移范围
-    .on('zoom', zoomed)
-
-  // 将 zoom 绑定到整个 svg
-  g.call(zoomBehavior)
-
-  // zoom 回调：用 transform 更新轴和散点位置
-  function zoomed(event) {
-    const transform = event.transform
-    newXScale = transform.rescaleX(xScale)
-    newYScale = transform.rescaleY(yScale)
-
-    xAxis = d3.axisBottom(newXScale)
-    yAxis = d3.axisLeft(newYScale)
-    if (DF.xIsDis)
-      xAxis
-        .tickValues(DF.xCategories.map((_, i) => i + 0.5))
-        .tickFormat((_, i) => DF.xCategories[i])
-    if (DF.yIsDis)
-      yAxis
-        .tickValues(DF.yCategories.map((_, i) => i + 0.5))
-        .tickFormat((_, i) => DF.yCategories[i])
-    xAxisG.call(xAxis)
-    yAxisG.call(yAxis)
-    gCircles
-      .selectAll('circle.point')
-      .attr('cx', d => newXScale(d._x) + (DF.xIsDis && !DF.yIsDis ? d._offset : 0))
-      .attr('cy', d => newYScale(d._y) + (DF.yIsDis && !DF.xIsDis ? d._offset : 0))
-  }
-*/
 
 function getTips(fields) {
   // d3.selectAll('.d3-tip').remove()
