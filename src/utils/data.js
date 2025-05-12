@@ -106,14 +106,14 @@ export class DataFrame {
       if (this.xIsDis) {
         return [0, d3.max(xVals) + 0.5]
       } else {
-        return calculateDomain(d3.extent(xVals), 0.05)
+        return calculateDomain(d3.extent(xVals))
       }
     } else {
       const yVals = this.plotData.map(d => d._y)
       if (this.yIsDis) {
         return [0, d3.max(yVals) + 0.5]
       } else {
-        return calculateDomain(d3.extent(yVals), 0.05)
+        return calculateDomain(d3.extent(yVals))
       }
     }
   }

@@ -80,9 +80,13 @@
 
   import { isDiscrete, loadDataTable } from './utils/data.js'
 
-  import { initGraphBuilder, PlotLauncher } from '@/utils/chart.js';
+  import { initGraphBuilder } from '@/utils/chart.js';
 
   import { calculateMaxBins } from '@/utils/tools.js'
+
+  import { ScatterPlot } from '@/utils/plotting/scatter.js'
+
+  import { HistogramPlot } from '@/utils/plotting/histogram.js'
 
   /**
    * 初始化参数
@@ -201,25 +205,30 @@
         const xAxisVis = j === yNum - 1;
         const yAxisVis = i === 0;
 
-        // 在 <td> 里 new PlotLauncher
-        console.log(xAxisVis, yAxisVis)
-        const pl = new PlotLauncher(
-          cell.node(),
-          subInnerW,
-          subInnerH,
-          subMargin,
-          chartId++,
-          xAxisVis,
-          yAxisVis
-        );
-
         // 根据选中的 chart 类型调用绘图
         const fields = [xFields.value[i], yFields.value[j], cField.value, sField.value];
         if (selectedChart.value === 'scatter') {
-          pl.drawScatter(data.value, fields);
+          const pl = new ScatterPlot(
+            cell.node(),
+            subInnerW,
+            subInnerH,
+            subMargin,
+            chartId++,
+            xAxisVis,
+            yAxisVis
+          );
+          pl.draw(data.value, fields);
         } else {
-          console.log(yMax)
-          pl.drawHistogram(data.value, [xFields.value[i]], yMax);
+          const pl = new HistogramPlot(
+            cell.node(),
+            subInnerW,
+            subInnerH,
+            subMargin,
+            chartId++,
+            xAxisVis,
+            yAxisVis
+          );
+          pl.draw(data.value, [xFields.value[i]], yMax);
         }
       }
     }

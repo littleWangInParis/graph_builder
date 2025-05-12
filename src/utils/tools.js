@@ -10,7 +10,7 @@ export function getMaxOverlapFromMap(offsetMap) {
   return maxCount
 }
 
-export function calculateDomain(extent, padding) {
+export function calculateDomain(extent, padding = 0.05) {
   const range = (extent[1] - extent[0]) * padding
   return [extent[0] - range, extent[1] + range]
 }
@@ -21,14 +21,13 @@ export function calculateMaxBins(allXFields, data, innerW) {
 
   allXFields.forEach(field => {
     const values = data.value.map(d => +d[field])
-    const xScale = d3.scaleLinear().domain(d3.extent(values)).nice().range([0, innerW])
+
+    const xDomain = calculateDomain(d3.extent(values))
+    const xScale = d3.scaleLinear().domain(xDomain).range([0, innerW])
 
     const thresholds = xScale.ticks(12)
 
-    const binGenerator = d3
-      .bin()
-      .domain(d3.extent(values))
-      .thresholds(thresholds)
+    const binGenerator = d3.bin().domain(d3.extent(values)).thresholds(thresholds)
 
     const bins = binGenerator(values)
     const maxBinCount = d3.max(bins, d => d.length)
